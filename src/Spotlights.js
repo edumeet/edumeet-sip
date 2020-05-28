@@ -33,48 +33,6 @@ export default class Spotlights extends EventEmitter
 		}
 	}
 
-	peerInSpotlights(peerId)
-	{
-		if (this._started)
-		{
-			return this._currentSpotlights.indexOf(peerId) !== -1;
-		}
-		else
-		{
-			return false;
-		}
-	}
-
-	setPeerSpotlight(peerId)
-	{
-		logger.debug('setPeerSpotlight() [peerId:"%s"]', peerId);
-
-		const index = this._selectedSpotlights.indexOf(peerId);
-		
-		if (index !== -1)
-		{
-			this._selectedSpotlights = [];
-		}
-		else
-		{
-			this._selectedSpotlights = [ peerId ];
-		}
-
-		/*
-		if (index === -1) // We don't have this peer in the list, adding
-		{
-			this._selectedSpotlights.push(peerId);
-		}
-		else // We have this peer, remove
-		{
-			this._selectedSpotlights.splice(index, 1);
-		}
-		*/
-
-		if (this._started)
-			this._spotlightsUpdated();
-	}
-
 	_handleSignaling()
 	{
 		this._signalingSocket.on('notification', (notification) =>
@@ -93,6 +51,15 @@ export default class Spotlights extends EventEmitter
 				this._closePeer(peerId);
 			}
 		});
+	}
+
+	clearSpotlights()
+	{
+		this._started = false;
+
+		this._peerList = [];
+		this._selectedSpotlights = [];
+		this._currentSpotlights = [];
 	}
 
 	_newPeer(id)

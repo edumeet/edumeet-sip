@@ -7,7 +7,6 @@ import { getSignalingUrl } from './urlFactory';
 import BrowserMixer from './BrowserMixer';
 
 const {
-	turnServers,
 	requestTimeout,
 	transportOptions,
 	lastN
@@ -18,8 +17,7 @@ const logger = new Logger('RoomClient');
 const ROOM_OPTIONS =
 {
 	requestTimeout   : requestTimeout,
-	transportOptions : transportOptions,
-	turnServers      : turnServers
+	transportOptions : transportOptions
 };
 
 const PC_PROPRIETARY_CONSTRAINTS =
@@ -65,6 +63,9 @@ export default class RoomClient extends EventEmitter
 		// The room ID
 		this._roomId = roomId;
 
+		// Turn servers to use
+		this._turnServers = null;
+
 		// mediasoup-client Device instance.
 		// @type {mediasoupClient.Device}
 		this._mediasoupDevice = null;
@@ -103,6 +104,10 @@ export default class RoomClient extends EventEmitter
 		this._closed = true;
 
 		logger.debug('close()');
+
+		this._sipSession.terminate();
+
+		this._sipSession = null;
 
 		this._signalingSocket.close();
 
@@ -262,8 +267,11 @@ export default class RoomClient extends EventEmitter
 					track,
 					codecOptions :
 					{
-						opusStereo : 1,
-						opusDtx    : 1
+						opusStereo          : false,
+						opusDtx             : true,
+						opusFec             : true,
+						opusPtime           : '3',
+						opusMaxPlaybackRate	: 48000
 					},
 					appData : { source: 'mic' }
 				});
@@ -275,7 +283,7 @@ export default class RoomClient extends EventEmitter
 
 			this._audioProducer.on('trackended', () =>
 			{
-				this.disableMic()
+				this._disableAudio()
 					.catch(() => {});
 			});
 		}
@@ -353,7 +361,7 @@ export default class RoomClient extends EventEmitter
 
 			this._videoProducer.on('trackended', () =>
 			{
-				this.disableMic()
+				this._disableVideo()
 					.catch(() => {});
 			});
 		}
@@ -383,34 +391,6 @@ export default class RoomClient extends EventEmitter
 		this._videoProducer = null;
 	}
 
-	async getServerHistory()
-	{
-		logger.debug('getServerHistory()');
-
-		try
-		{
-			const {
-				lastNHistory
-			} = await this.sendRequest('serverHistory');
-
-			if (lastNHistory.length > 0)
-			{
-				logger.debug('Got lastNHistory');
-
-				// Remove our self from list
-				const index = lastNHistory.indexOf(this._peerId);
-
-				lastNHistory.splice(index, 1);
-
-				this._spotlights.addSpeakerList(lastNHistory);
-			}
-		}
-		catch (error)
-		{
-			logger.error('getServerHistory() | failed: %o', error);
-		}
-	}
-
 	// Updated consumers based on spotlights
 	async updateSpotlights(spotlights)
 	{
@@ -422,7 +402,7 @@ export default class RoomClient extends EventEmitter
 			{
 				if (consumer.kind === 'video')
 				{
-					if (spotlights.indexOf(consumer.appData.peerId) > -1)
+					if (spotlights.includes(consumer.appData.peerId))
 					{
 						await this._resumeConsumer(consumer);
 					}
@@ -485,12 +465,24 @@ export default class RoomClient extends EventEmitter
 
 		this._signalingSocket.on('connect', () =>
 		{
-			logger.debug('signaling Peer "connect" event');
+			logger.debug('signaling "connect" event');
 		});
 
 		this._signalingSocket.on('disconnect', () =>
 		{
-			logger.warn('signaling Peer "disconnect" event');
+			logger.warn('signaling "disconnect" event');
+
+			if (this._videoProducer)
+			{
+				this._videoProducer.close();
+				this._videoProducer = null;
+			}
+
+			if (this._audioProducer)
+			{
+				this._audioProducer.close();
+				this._audioProducer = null;
+			}
 
 			// Close mediasoup Transports.
 			if (this._sendTransport)
@@ -504,6 +496,8 @@ export default class RoomClient extends EventEmitter
 				this._recvTransport.close();
 				this._recvTransport = null;
 			}
+
+			this._spotlights.clearSpotlights();
 		});
 
 		this._signalingSocket.on('close', () =>
@@ -511,7 +505,7 @@ export default class RoomClient extends EventEmitter
 			if (this._closed)
 				return;
 
-			logger.warn('signaling Peer "close" event');
+			logger.warn('signaling "close" event');
 
 			this.close();
 		});
@@ -535,23 +529,12 @@ export default class RoomClient extends EventEmitter
 						appData
 					} = request.data;
 
-					let codecOptions;
-
-					if (kind === 'audio')
-					{
-						codecOptions =
-						{
-							opusStereo : 1
-						};
-					}
-
 					const consumer = await this._recvTransport.consume(
 						{
 							id,
 							producerId,
 							kind,
 							rtpParameters,
-							codecOptions,
 							appData : { ...appData, peerId } // Trick.
 						});
 
@@ -609,7 +592,7 @@ export default class RoomClient extends EventEmitter
 				{
 					case 'enteredLobby':
 					{
-						const { displayName } = 'SIP';
+						const displayName = 'SIP';
 
 						await this.sendRequest('changeDisplayName', { displayName });
 
@@ -617,6 +600,17 @@ export default class RoomClient extends EventEmitter
 					}
 
 					case 'roomReady':
+					{
+						const { turnServers } = notification.data;
+
+						this._turnServers = turnServers;
+
+						await this._joinRoom();
+
+						break;
+					}
+
+					case 'roomBack':
 					{
 						await this._joinRoom();
 
@@ -656,7 +650,15 @@ export default class RoomClient extends EventEmitter
 
 						break;
 					}
-	
+
+					case 'moderator:kick':
+					{
+						// Need some feedback
+						this.close();
+
+						break;
+					}
+
 					default:
 					{
 						logger.debug(
@@ -681,7 +683,10 @@ export default class RoomClient extends EventEmitter
 			this._mediasoupDevice = new mediasoupClient.Device();
 
 			const routerRtpCapabilities =
-				await this.sendRequest('getRouterRtpCapabilities');
+			await this.sendRequest('getRouterRtpCapabilities');
+
+			routerRtpCapabilities.headerExtensions = routerRtpCapabilities.headerExtensions
+				.filter((ext) => ext.uri !== 'urn:3gpp:video-orientation');
 
 			await this._mediasoupDevice.load({ routerRtpCapabilities });
 
@@ -706,7 +711,7 @@ export default class RoomClient extends EventEmitter
 						iceParameters,
 						iceCandidates,
 						dtlsParameters,
-						iceServers             : ROOM_OPTIONS.turnServers,
+						iceServers             : this._turnServers,
 						proprietaryConstraints : PC_PROPRIETARY_CONSTRAINTS
 					});
 
@@ -768,7 +773,7 @@ export default class RoomClient extends EventEmitter
 						iceParameters,
 						iceCandidates,
 						dtlsParameters,
-						iceServers : ROOM_OPTIONS.turnServers
+						iceServers : this._turnServers
 					});
 
 				this._recvTransport.on(
@@ -785,7 +790,10 @@ export default class RoomClient extends EventEmitter
 					});
 			}
 
-			const { peers } = await this.sendRequest(
+			const {
+				peers,
+				lastNHistory
+			} = await this.sendRequest(
 				'join',
 				{
 					displayName     : 'SIP',
@@ -803,6 +811,15 @@ export default class RoomClient extends EventEmitter
 			{
 				this.updateSpotlights(spotlights);
 			});
+
+			if (lastNHistory.length > 0)
+			{
+				logger.debug('_joinRoom() | got lastN history');
+
+				this._spotlights.addSpeakerList(
+					lastNHistory.filter((peerId) => peerId !== this._peerId)
+				);
+			}
 
 			if (this._sipSession)
 			{
@@ -827,8 +844,6 @@ export default class RoomClient extends EventEmitter
 					}
 				});
 			}
-
-			this.getServerHistory();
 
 			this._spotlights.start();
 		}
