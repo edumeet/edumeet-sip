@@ -1,6 +1,6 @@
-# multiparty-meeting-SIPGW
+# edumeet-SIPGW
 
-A SIP gateway for [multiparty-meeting](https://github.com/havfo/multiparty-meeting)
+A SIP gateway for [edumeet](https://github.com/edumeet/edumeet)
 
 ## License
 

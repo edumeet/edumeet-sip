@@ -1,8 +1,8 @@
 {
-	"name": "multiparty-meeting-sip",
+	"name": "edumeet-sip",
 	"version": "3.3.0",
 	"private": true,
-	"description": "multiparty meeting service SIPGW",
+	"description": "edumeet service SIPGW",
 	"author": "Håvar Aambø Fosstveit <havar@fosstveit.net>",
 	"license": "MIT",
 	"dependencies": {

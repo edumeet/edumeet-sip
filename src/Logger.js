@@ -1,6 +1,6 @@
 import debug from 'debug';
 
-const APP_NAME = 'multiparty-meeting-sip';
+const APP_NAME = 'edumeet-sip';
 
 export default class Logger
 {
