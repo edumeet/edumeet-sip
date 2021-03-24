@@ -1,0 +1,22 @@
+<configuration name="modules.conf" description="Modules">
+  <modules>
+    <!-- Loggers (I'd load these first) -->
+    <!--    <load module="mod_console"/>-->
+
+    <!-- Event Handlers -->
+    <load module="mod_event_socket"/>
+
+    <!-- Endpoints -->
+    <load module="mod_sofia"/>
+
+    <!-- Applications -->
+    <load module="mod_commands"/>
+    <load module="mod_dptools"/>
+
+    <!-- Dialplan Interfaces -->
+    <load module="mod_dialplan_xml"/>
+
+    <load module="mod_opus"/>
+    <load module="mod_h26x"/>
+  </modules>
+</configuration>

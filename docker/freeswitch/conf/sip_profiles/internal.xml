@@ -1,0 +1,25 @@
+<profile name="internal">
+  <settings>
+    <param name="challenge-realm" value="edumeet-sip"/> 
+
+    <param name="auth-calls" value="true"/>
+    <param name="apply-nat-acl" value="nat.auto"/>
+
+    <param name="debug" value="0"/>
+
+    <param name="dialplan" value="XML"/>
+    <param name="context" value="default"/>
+    <param name="codec-prefs" value="PCMU,PCMA"/>
+
+    <!-- invalid IP will automatically replaced with WAN ip -->
+    <param name="rtp-ip" value="0.0.0.0"/> 
+    <param name="ext-rtp-ip" value="auto-nat"/>
+    <param name="ext-sip-ip" value="auto-nat"/>
+
+    <param name="sip-ip" value="127.0.0.1"/>
+    <param name="sip-port" value="5060"/>
+    <param name="tls-cert-dir" value="/etc/freeswitch/tls"/>
+    <param name="wss-binding" value="$${internal_wss_binding}"/>
+    <param name="dtmf-type" value="info"/>
+  </settings>
+</profile>
