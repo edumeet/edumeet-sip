@@ -4,7 +4,6 @@ import * as mediasoupClient from 'mediasoup-client';
 import Logger from './Logger';
 import Spotlights from './Spotlights';
 import { getSignalingUrl } from './urlFactory';
-import BrowserMixer from './BrowserMixer';
 
 const {
 	requestTimeout,
@@ -25,29 +24,21 @@ const PC_PROPRIETARY_CONSTRAINTS =
 	optional : [ { googDscp: true } ]
 };
 
-const VIDEO_SIMULCAST_ENCODINGS =
-[
-	{ scaleResolutionDownBy: 4 },
-	// { scaleResolutionDownBy: 2 },
-	{ scaleResolutionDownBy: 1 }
-];
-
-// Used for VP9 webcam video.
-const VIDEO_KSVC_ENCODINGS =
-[
-	{ scalabilityMode: 'S3T3_KEY' }
-];
 
 export default class RoomClient extends EventEmitter
 {
-	constructor({ roomId, peerId })
+	constructor({ roomId, peerId, displayName, onClose, onTrackAdded, onTrackRemoved })
 	{
 		logger.debug(
 			'constructor() [roomId: "%s", peerId: "%s"]',
 			roomId, peerId);
 		super();
+		this._onCloseCallback = onClose;
+		this._onTrackAddedCallback = onTrackAdded;
+		this._onTrackRemovedCallback = onTrackRemoved;
 
 		this._signalingUrl = getSignalingUrl(peerId, roomId);
+		
 
 		// Closed flag.
 		this._closed = false;
@@ -56,6 +47,8 @@ export default class RoomClient extends EventEmitter
 
 		// My peer name.
 		this._peerId = peerId;
+
+		this._displayName = displayName
 
 		// Socket.io peer connection
 		this._signalingSocket = null;
@@ -91,8 +84,6 @@ export default class RoomClient extends EventEmitter
 		// @type {Map<String, mediasoupClient.Consumer>}
 		this._consumers = new Map();
 
-		this._browserMixer = new BrowserMixer({ mixWidth: 640, mixHeight: 480 });
-
 		this.join();
 	}
 
@@ -105,10 +96,6 @@ export default class RoomClient extends EventEmitter
 
 		logger.debug('close()');
 
-		this._sipSession.terminate();
-
-		this._sipSession = null;
-
 		this._signalingSocket.close();
 
 		// Close mediasoup Transports.
@@ -118,7 +105,7 @@ export default class RoomClient extends EventEmitter
 		if (this._recvTransport)
 			this._recvTransport.close();
 
-		this._browserMixer.close();
+		this._onCloseCallback()
 
 		this.emit('closed');
 	}
@@ -174,76 +161,6 @@ export default class RoomClient extends EventEmitter
 						}
 					})
 				);
-			}
-		});
-	}
-
-	getMixStream()
-	{
-		return this._browserMixer.getMixStream();
-	}
-
-	incomingSession(sipSession)
-	{
-		logger.debug('incomingSession() [sipSession:"%o"]', sipSession);
-
-		this._sipSession = sipSession;
-
-		sipSession.on('trackAdded', () =>
-		{
-			logger.debug('SipSession trackAdded [sipSession: %o]', sipSession);
-
-			const { peerConnection } = sipSession.sessionDescriptionHandler;
-
-			peerConnection.getReceivers().forEach(async (receiver) =>
-			{
-				const { track } = receiver;
-
-				if (track && this._joined)
-				{
-					logger.debug('incomingSession() | remote track [track:"%o"]', receiver.track);
-
-					if (track.kind === 'audio')
-					{
-						this._enableAudio(track);
-					}
-					else
-					{
-						this._enableVideo(track);
-					}
-				}
-			});
-		});
-
-		sipSession.on('replaced', (newSipSession) =>
-		{
-			logger.debug('SipSession replaced [oldSipSession: %o, newSipSession: %o]', sipSession, newSipSession);
-
-			this._handleSession(newSipSession);
-		});
-
-		sipSession.on('terminated', (message, cause) =>
-		{
-			logger.debug(
-				'SipSession terminated [message: %o, cause: %s, sipSession: %o]',
-				message,
-				cause,
-				sipSession
-			);
-
-			this.close();
-		});
-
-		sipSession.accept({
-			sessionDescriptionHandlerOptions :
-			{
-				constraints :
-				{
-					audio  : true,
-					video  : true,
-					roomId : this._roomId,
-					peerId : this._peerId
-				}
 			}
 		});
 	}
@@ -311,84 +228,6 @@ export default class RoomClient extends EventEmitter
 		}
 
 		this._audioProducer = null;
-	}
-
-	async _enableVideo(track)
-	{
-		if (this._videoProducer)
-			return;
-
-		if (!this._mediasoupDevice.canProduce('video'))
-		{
-			logger.error('_enableVideo() | cannot produce video');
-
-			return;
-		}
-
-		try
-		{
-			// If VP9 is the only available video codec then use SVC.
-			const firstVideoCodec = this._mediasoupDevice
-				.rtpCapabilities
-				.codecs
-				.find((c) => c.kind === 'video');
-
-			let encodings;
-
-			if (firstVideoCodec.mimeType.toLowerCase() === 'video/vp9')
-				encodings = VIDEO_KSVC_ENCODINGS;
-			else
-				encodings = VIDEO_SIMULCAST_ENCODINGS;
-
-			this._videoProducer = await this._sendTransport.produce(
-				{
-					track,
-					encodings,
-					codecOptions :
-					{
-						videoGoogleStartBitrate : 1000
-					},
-					appData : 
-					{
-						source : 'webcam'
-					}
-				});
-			
-			this._videoProducer.on('transportclose', () =>
-			{
-				this._micProducer = null;
-			});
-
-			this._videoProducer.on('trackended', () =>
-			{
-				this._disableVideo()
-					.catch(() => {});
-			});
-		}
-		catch (error)
-		{
-			logger.debug('_enableVideo() [error:"%o"]', error);
-		}
-	}
-
-	async _disableVideo()
-	{
-		if (!this._videoProducer)
-			return;
-
-		this._videoProducer.close();
-
-		try
-		{
-			await this.sendRequest(
-				'closeProducer', { producerId: this._videoProducer.id });
-		}
-		catch (error)
-		{
-			logger.debug('_disableVideo() [error:"%o"]', error);
-		}
-
-		this._videoProducer = null;
 	}
 
 	// Updated consumers based on spotlights
@@ -518,58 +357,6 @@ export default class RoomClient extends EventEmitter
 
 			switch (request.method)
 			{
-				case 'newConsumer':
-				{
-					const {
-						peerId,
-						producerId,
-						id,
-						kind,
-						rtpParameters,
-						appData
-					} = request.data;
-
-					const consumer = await this._recvTransport.consume(
-						{
-							id,
-							producerId,
-							kind,
-							rtpParameters,
-							appData : { ...appData, peerId } // Trick.
-						});
-
-					// Store in the map.
-					this._consumers.set(consumer.id, consumer);
-
-					consumer.on('transportclose', () =>
-					{
-						if (kind === 'audio')
-						{
-							this._browserMixer.removeAudio(consumer.track);
-						}
-						else
-						{
-							this._browserMixer.removeVideo(consumer.track);
-						}
-
-						this._consumers.delete(consumer.id);
-					});
-
-					// We are ready. Answer the request so the server will
-					// resume this Consumer (which was paused for now).
-					cb(null);
-
-					if (kind === 'audio')
-					{
-						this._browserMixer.addAudio(consumer.track);
-					}
-					else
-					{
-						this._browserMixer.addVideo(consumer.track);
-					}
-
-					break;
-				}
 
 				default:
 				{
@@ -592,7 +379,7 @@ export default class RoomClient extends EventEmitter
 				{
 					case 'enteredLobby':
 					{
-						const displayName = 'SIP';
+						const displayName = this._displayName;
 
 						await this.sendRequest('changeDisplayName', { displayName });
 
@@ -627,6 +414,42 @@ export default class RoomClient extends EventEmitter
 						break;
 					}
 
+					case 'newConsumer':
+					{
+						
+						const {
+							peerId,
+							producerId,
+							id,
+							kind,
+							rtpParameters,
+							appData
+						} = notification.data;
+
+						if (kind !== 'audio') return
+		
+						const consumer = await this._recvTransport.consume(
+							{
+								id,
+								producerId,
+								kind,
+								rtpParameters,
+								appData : { ...appData, peerId } // Trick.
+							});
+		
+						// Store in the map.
+						this._consumers.set(consumer.id, consumer);
+		
+						consumer.on('transportclose', () =>
+						{
+							this._onTrackRemovedCallback(consumer.track)
+							this._consumers.delete(consumer.id);
+						});
+				
+						this._onTrackAddedCallback(consumer.track)
+
+						break;
+					}
 					case 'consumerClosed':
 					{
 						const { consumerId } = notification.data;
@@ -635,14 +458,7 @@ export default class RoomClient extends EventEmitter
 						if (!consumer)
 							break;
 
-						if (consumer.kind === 'audio')
-						{
-							this._browserMixer.removeAudio(consumer.track);
-						}
-						else
-						{
-							this._browserMixer.removeVideo(consumer.track);
-						}
+						this._onTrackRemovedCallback(consumer.track)
 	
 						consumer.close();
 	
@@ -796,7 +612,7 @@ export default class RoomClient extends EventEmitter
 			} = await this.sendRequest(
 				'join',
 				{
-					displayName     : 'SIP',
+					displayName     : this._displayName,
 					picture         : null,
 					rtpCapabilities : this._mediasoupDevice.rtpCapabilities
 				});
@@ -819,30 +635,6 @@ export default class RoomClient extends EventEmitter
 				this._spotlights.addSpeakerList(
 					lastNHistory.filter((peerId) => peerId !== this._peerId)
 				);
-			}
-
-			if (this._sipSession)
-			{
-				const { peerConnection } = this._sipSession.sessionDescriptionHandler;
-
-				peerConnection.getReceivers().forEach(async (receiver) =>
-				{
-					const { track } = receiver;
-	
-					if (track && this._joined)
-					{
-						logger.debug('incomingSession() | remote track [track:"%o"]', receiver.track);
-	
-						if (track.kind === 'audio')
-						{
-							this._enableAudio(track);
-						}
-						else
-						{
-							this._enableVideo(track);
-						}
-					}
-				});
 			}
 
 			this._spotlights.start();
