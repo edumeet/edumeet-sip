@@ -13,7 +13,8 @@
 		"sdp-transform": "^2.14.0",
 		"sip.js": "^0.15.10",
 		"socket.io-client": "^2.3.0",
-		"source-map-explorer": "^2.1.0"
+		"source-map-explorer": "^2.1.0",
+		"typescript": "^3.9.9"
 	},
 	"scripts": {
 		"analyze-main": "source-map-explorer build/static/js/main.*",
