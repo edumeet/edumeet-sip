@@ -1,24 +1,20 @@
 // eslint-disable-next-line
 var config =
 {
-	userAgentString    : 'edumeet SIPGW',
-	displayName        : 'edumeet SIPGW',
-	register           : true,
-	uri                : 'uri@example.com',
-	password           : 'password',
-	wsServers          : [ 'wss://example.com' ],
-	traceSip           : true,
+	sip : {
+		displayName     : 'edumeet SIPGW',
+		userAgentString : 'edumeet SIPGW',
+		server          : 'wss://10.5.0.1:7443',
+		uri             : 'sip:1000@edumeet-sip',
+		username        : '1000',
+		password        : 'HelloWorld',
+		traceSip        : true
+	},
 	edumeetHostName : 'example.com',
 	edumeetPort     : '4443',
-	turnServers        : [
-		{
-			urls : [
-				'turn:turn.example.com:443?transport=tcp'
-			],
-			username   : 'example',
-			credential : 'example'
-		}
-	],
+	roomMapping     : {
+		'00000' : 'test'
+	},
 	requestTimeout   : 10000,
 	transportOptions :
 	{

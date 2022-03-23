@@ -1,0 +1,8 @@
+<include>
+  <X-PRE-PROCESS cmd="set" data="global_codec_prefs=OPUS,G722,PCMU,PCMA,H264,VP8"/>
+  <X-PRE-PROCESS cmd="set" data="outbound_codec_prefs=OPUS,G722,PCMU,PCMA,H264,VP8"/>
+
+  <X-PRE-PROCESS cmd="set" data="external_sip_port=50807"/>
+  <X-PRE-PROCESS cmd="set" data="internal_extension_1000_password=HelloWorld"/>
+  <X-PRE-PROCESS cmd="set" data="internal_wss_binding=10.5.0.1:7443"/>
+</include>/

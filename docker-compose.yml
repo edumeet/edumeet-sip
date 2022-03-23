@@ -1,0 +1,32 @@
+version: '3.6'
+
+services:
+  freeswitch:
+    build: ./docker/freeswitch
+    network_mode: host
+    cap_add:
+      - CAP_SYS_NICE
+    volumes:
+      - ./docker/freeswitch/conf/sip_profiles/external:/etc/freeswitch/sip_profiles/external:ro
+  
+  app:
+    image: node:15-buster-slim
+    entrypoint: bash -c 'cd /app && npm install && npm run start'
+    user: ${USERID}
+    volumes:
+      - ./:/app
+    stdin_open: true
+    
+  browser:
+    image: montferret/chromium
+    entrypoint: sh -c 'wget --no-check-certificate --retry-on-host-error --no-verbose --spider --retry-connrefused https://app:4443 && ./entrypoint.sh'
+    environment:
+      CHROME_OPTS: '--autoplay-policy=no-user-gesture-required https://app:4443'
+
+networks:
+  default:
+    ipam:
+     driver: default
+     config:
+       - subnet: 10.5.0.0/16
+         gateway: 10.5.0.1

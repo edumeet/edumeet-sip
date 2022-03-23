@@ -1,0 +1,13 @@
+<!-- http://wiki.freeswitch.org/wiki/Dialplan_XML -->
+<include>
+  <context name="public">
+
+    <extension name="from_my_provider">
+      <condition>
+        <action application="start_dtmf" />
+        <action application="bridge" data="sofia/internal/1000%edumeet-sip"/> 
+      </condition>
+    </extension>
+
+  </context>
+</include>

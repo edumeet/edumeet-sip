@@ -2,4 +2,6 @@ node_modules/
 
 build/
 public/config/config.js
+docker/freeswitch/conf/sip_profiles/external/*
+!docker/freeswitch/conf/sip_profiles/external/provider.xml.example
 .vscode

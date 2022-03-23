@@ -1,0 +1,15 @@
+<include>
+    <domain name="edumeet-sip">
+      <groups>
+        <group name="local">
+            <users>
+              <user id="1000">
+                <params>
+                  <param name="password" value="$${internal_extension_1000_password}"/>
+                </params>
+              </user>
+            </users>
+        </group>
+      </groups>
+    </domain>
+</include>
