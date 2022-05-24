@@ -32,12 +32,85 @@ const VIDEO_SIMULCAST_ENCODINGS =
 	{ scaleResolutionDownBy: 1 }
 ];
 
+const insertableStreamsSupported = Boolean(RTCRtpSender.prototype.createEncodedStreams);
+
 // Used for VP9 webcam video.
 const VIDEO_KSVC_ENCODINGS =
 [
 	{ scalabilityMode: 'S3T3_KEY' }
 ];
 
+
+const DEFAULT_NETWORK_PRIORITIES =
+{
+	audio            : 'high',
+	mainVideo        : 'high',
+	additionalVideos : 'medium',
+	screenShare      : 'medium'
+};
+
+
+/**
+ * Validates the simulcast `encodings` array extracting the resolution scalings
+ * array.
+ * ref. https://www.w3.org/TR/webrtc/#rtp-media-api
+ * 
+ * @param {*} encodings
+ * @returns the resolution scalings array
+ */
+ function getResolutionScalings(encodings)
+ {
+	 const resolutionScalings = [];
+ 
+	 // SVC encodings
+	 if (encodings.length === 1)
+	 {
+		 const { spatialLayers } =
+			 mediasoupClient.parseScalabilityMode(encodings[0].scalabilityMode);
+ 
+		 for (let i=0; i < spatialLayers; i++)
+		 {
+			 resolutionScalings.push(2 ** (spatialLayers - i - 1));
+		 }
+ 
+		 return resolutionScalings;
+	 }
+ 
+	 // Simulcast encodings
+	 let scaleResolutionDownByDefined = false;
+ 
+	 encodings.forEach((encoding) =>
+	 {
+		 if (encoding.scaleResolutionDownBy !== undefined)
+		 {
+			 // at least one scaleResolutionDownBy is defined
+			 scaleResolutionDownByDefined = true;
+			 // scaleResolutionDownBy must be >= 1.0
+			 resolutionScalings.push(Math.max(1.0, encoding.scaleResolutionDownBy));
+		 }
+		 else
+		 {
+			 // If encodings contains any encoding whose scaleResolutionDownBy
+			 // attribute is defined, set any undefined scaleResolutionDownBy
+			 // of the other encodings to 1.0.
+			 resolutionScalings.push(1.0);
+		 }
+	 });
+ 
+	 // If the scaleResolutionDownBy attribues of sendEncodings are
+	 // still undefined, initialize each encoding's scaleResolutionDownBy
+	 // to 2^(length of sendEncodings - encoding index - 1).
+	 if (!scaleResolutionDownByDefined)
+	 {
+		 encodings.forEach((encoding, index) =>
+		 {
+			 resolutionScalings[index] = 2 ** (encodings.length - index - 1);
+		 });
+	 }
+ 
+	 return resolutionScalings;
+ }
+ 
 export default class RoomClient extends EventEmitter
 {
 	constructor({ roomId, peerId })
@@ -250,9 +323,9 @@ export default class RoomClient extends EventEmitter
 
 	async _enableAudio(track)
 	{
-		if (this._audioProducer)
+		if (this._audioProducer){
 			return;
-
+		}
 		if (!this._mediasoupDevice.canProduce('audio'))
 		{
 			logger.error('_enableAudio() | cannot produce audio');
@@ -260,11 +333,19 @@ export default class RoomClient extends EventEmitter
 			return;
 		}
 
+		const networkPriority = DEFAULT_NETWORK_PRIORITIES.audio;
+
 		try
 		{
 			this._audioProducer = this._audioProducer = await this._sendTransport.produce(
 				{
 					track,
+					encodings :
+						[
+							{
+								networkPriority
+							}
+						],
 					codecOptions :
 					{
 						opusStereo          : false,
@@ -333,12 +414,17 @@ export default class RoomClient extends EventEmitter
 				.codecs
 				.find((c) => c.kind === 'video');
 
+			const { deviceId: width, height } = track.getSettings();
+
 			let encodings;
 
 			if (firstVideoCodec.mimeType.toLowerCase() === 'video/vp9')
 				encodings = VIDEO_KSVC_ENCODINGS;
 			else
 				encodings = VIDEO_SIMULCAST_ENCODINGS;
+
+			// fix fullscreen mode 
+			const resolutionScalings = getResolutionScalings(encodings);
 
 			this._videoProducer = await this._sendTransport.produce(
 				{
@@ -350,10 +436,14 @@ export default class RoomClient extends EventEmitter
 					},
 					appData : 
 					{
-						source : 'webcam'
+						source : 'webcam',
+						width,
+						height,
+						resolutionScalings
+
 					}
 				});
-			
+
 			this._videoProducer.on('transportclose', () =>
 			{
 				this._micProducer = null;
@@ -441,10 +531,9 @@ export default class RoomClient extends EventEmitter
 	async _resumeConsumer(consumer)
 	{
 		logger.debug('_resumeConsumer() [consumer: %o]', consumer);
-
 		if (!consumer.paused || consumer.closed)
 			return;
-
+ 
 		try
 		{
 			await this.sendRequest('resumeConsumer', { consumerId: consumer.id });
@@ -510,14 +599,30 @@ export default class RoomClient extends EventEmitter
 			this.close();
 		});
 
-		this._signalingSocket.on('request', async (request, cb) =>
+		this._signalingSocket.on('notification', async (notification) =>
 		{
 			logger.debug(
-				'socket "request" event [method:%s, data:%o]',
-				request.method, request.data);
+				'socket "notification" event [method:%s, data:%o]',
+				notification.method, notification.data);
 
-			switch (request.method)
+			switch (notification.method)
 			{
+				case 'consumerResumed':
+					{
+						const { consumerId } = notification.data;
+						const consumer = this._consumers.get(consumerId);
+
+						if (!consumer)
+							break;
+
+						this._spotlights.resumeVideoConsumer(consumerId);
+
+						break;
+					}
+				case 'consumerScore':
+					{
+						break;
+					}
 				case 'newConsumer':
 				{
 					const {
@@ -526,9 +631,8 @@ export default class RoomClient extends EventEmitter
 						id,
 						kind,
 						rtpParameters,
-						appData
-					} = request.data;
-
+						appData,
+					} = notification.data;
 					const consumer = await this._recvTransport.consume(
 						{
 							id,
@@ -555,9 +659,11 @@ export default class RoomClient extends EventEmitter
 						this._consumers.delete(consumer.id);
 					});
 
-					// We are ready. Answer the request so the server will
+					
+					// We are ready. Answer the notification so the server will
 					// resume this Consumer (which was paused for now).
-					cb(null);
+					await this.sendRequest('resumeConsumer', { consumerId: consumer.id });
+
 
 					if (kind === 'audio')
 					{
@@ -573,9 +679,7 @@ export default class RoomClient extends EventEmitter
 
 				default:
 				{
-					logger.debug('unknown request.method "%s"', request.method);
-
-					cb(500, `unknown request.method "${request.method}"`);
+					logger.debug('unknown notification.method "%s"', notification.method);
 				}
 			}
 		});
@@ -773,7 +877,13 @@ export default class RoomClient extends EventEmitter
 						iceParameters,
 						iceCandidates,
 						dtlsParameters,
-						iceServers : this._turnServers
+						iceServers : this._turnServers,
+						additionalSettings : {
+							encodedInsertableStreams : insertableStreamsSupported
+						},
+						appData : {
+							encodedInsertableStreams : insertableStreamsSupported
+						}
 					});
 
 				this._recvTransport.on(
