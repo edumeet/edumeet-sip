@@ -25,12 +25,6 @@ const PC_PROPRIETARY_CONSTRAINTS =
 	optional : [ { googDscp: true } ]
 };
 
-const VIDEO_SIMULCAST_ENCODINGS =
-[
-	{ scaleResolutionDownBy: 4 },
-	// { scaleResolutionDownBy: 2 },
-	{ scaleResolutionDownBy: 1 }
-];
 
 const insertableStreamsSupported = Boolean(RTCRtpSender.prototype.createEncodedStreams);
 
@@ -40,6 +34,41 @@ const VIDEO_KSVC_ENCODINGS =
 	{ scalabilityMode: 'S3T3_KEY' }
 ];
 
+// Used for VP9 desktop sharing.
+const VIDEO_SVC_ENCODINGS =
+[
+	{ scalabilityMode: 'S3T3', dtx: true }
+];
+const VIDEO_SIMULCAST_PROFILES =
+{
+	3840 :
+		[
+			{ scaleResolutionDownBy: 12, maxBitRate: 150000 },
+			{ scaleResolutionDownBy: 6, maxBitRate: 500000 },
+			{ scaleResolutionDownBy: 1, maxBitRate: 10000000 }
+		],
+	1920 :
+		[
+			{ scaleResolutionDownBy: 6, maxBitRate: 150000 },
+			{ scaleResolutionDownBy: 3, maxBitRate: 500000 },
+			{ scaleResolutionDownBy: 1, maxBitRate: 3500000 }
+		],
+	1280 :
+		[
+			{ scaleResolutionDownBy: 4, maxBitRate: 150000 },
+			{ scaleResolutionDownBy: 2, maxBitRate: 500000 },
+			{ scaleResolutionDownBy: 1, maxBitRate: 1200000 }
+		],
+	640 :
+	[
+		{ scaleResolutionDownBy: 2, maxBitRate: 150000 },
+		{ scaleResolutionDownBy: 1, maxBitRate: 500000 }
+	],
+	320 :
+	[
+		{ scaleResolutionDownBy: 1, maxBitRate: 150000 }
+	]
+};
 
 const DEFAULT_NETWORK_PRIORITIES =
 {
@@ -107,7 +136,6 @@ const DEFAULT_NETWORK_PRIORITIES =
 			 resolutionScalings[index] = 2 ** (encodings.length - index - 1);
 		 });
 	 }
- 
 	 return resolutionScalings;
  }
  
@@ -164,7 +192,7 @@ export default class RoomClient extends EventEmitter
 		// @type {Map<String, mediasoupClient.Consumer>}
 		this._consumers = new Map();
 
-		this._browserMixer = new BrowserMixer({ mixWidth: 640, mixHeight: 480 });
+		this._browserMixer = new BrowserMixer({ mixWidth: 1280, mixHeight: 960 });
 
 		this.join();
 	}
@@ -394,6 +422,57 @@ export default class RoomClient extends EventEmitter
 		this._audioProducer = null;
 	}
 
+
+	_getEncodings(width, height, screenSharing = false)
+	{
+		// If VP9 is the only available video codec then use SVC.
+		const firstVideoCodec = this._mediasoupDevice
+			.rtpCapabilities
+			.codecs
+			.find((c) => c.kind === 'video');
+
+		let encodings;
+
+		const size = (width > height ? width : height);
+
+		if (firstVideoCodec.mimeType.toLowerCase() === 'video/vp9')
+			encodings = screenSharing ? VIDEO_SVC_ENCODINGS : VIDEO_KSVC_ENCODINGS;
+		else
+			encodings = this._chooseEncodings(VIDEO_SIMULCAST_PROFILES, size);
+
+		return encodings;
+	}
+	_chooseEncodings(simulcastProfiles, size)
+	{
+		let encodings;
+
+		const sortedMap = new Map([ ...Object.entries(simulcastProfiles) ]
+			.sort((a, b) => parseInt(b[0]) - parseInt(a[0])));
+
+		for (const [ key, value ] of sortedMap)
+		{
+			if (key < size)
+			{
+				if (encodings === null)
+				{
+					encodings = value;
+				}
+
+				break;
+			}
+
+			encodings = value;
+		}
+
+		// hack as there is a bug in mediasoup
+		if (encodings.length === 1)
+		{
+			encodings.push({ ...encodings[0] });
+		}
+
+		return encodings;
+	}
+
 	async _enableVideo(track)
 	{
 		if (this._videoProducer)
@@ -416,16 +495,30 @@ export default class RoomClient extends EventEmitter
 
 			const { deviceId: width, height } = track.getSettings();
 
-			let encodings;
+
+			const networkPriority = {
+				'audio'            : 'high',
+				'mainVideo'        : 'high',
+				'additionalVideos' : 'medium',
+				'screenShare'      : 'medium'
+			};
+
+			/* let encodings;
 
 			if (firstVideoCodec.mimeType.toLowerCase() === 'video/vp9')
 				encodings = VIDEO_KSVC_ENCODINGS;
 			else
-				encodings = VIDEO_SIMULCAST_ENCODINGS;
+				encodings = VIDEO_SIMULCAST_ENCODINGS; */
+
+				const encodings = this._getEncodings(width, height);
+
 
 			// fix fullscreen mode 
 			const resolutionScalings = getResolutionScalings(encodings);
+			
 
+			encodings[0].networkPriority=networkPriority;
+			console.log(resolutionScalings);
 			this._videoProducer = await this._sendTransport.produce(
 				{
 					track,
@@ -498,7 +591,7 @@ export default class RoomClient extends EventEmitter
 					}
 					else
 					{
-						await this._pauseConsumer(consumer);
+						//await this._pauseConsumer(consumer);
 					}
 				}
 			}
