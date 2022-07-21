@@ -3,14 +3,50 @@ import io from 'socket.io-client';
 import * as mediasoupClient from 'mediasoup-client';
 import Logger from './Logger';
 import Spotlights from './Spotlights';
-import { getSignalingUrl } from './urlFactory';
 import BrowserMixer from './BrowserMixer';
+
+function getSignalingUrl(peerId, roomId) 
+{
+	let callid = null;
+
+	const wl = new URL(window.location).searchParams;
+
+	if (wl.has('callid')) 
+	{
+		callid = wl.get('callid');
+	}
+	if (callid == null || window.config[callid] === undefined) 
+	{
+		callid = [ 'default' ];
+	}
+
+	const url =
+		`wss://${window.config[callid].edumeetHostName}:${window.config[callid].edumeetPort}/?peerId=${peerId}&roomId=${roomId}`;
+
+	return url;
+}
 
 const {
 	requestTimeout,
-	transportOptions,
-	lastN
+	transportOptions
 } = window.config;
+
+let callid = null;
+
+const wl = new URL(window.location).searchParams;
+
+if (wl.has('callid')) 
+{
+	callid = wl.get('callid');
+}
+if (callid == null || window.config[callid] === undefined) 
+{
+	callid = [ 'default' ];
+}
+
+const {
+	lastN
+} = window.config[callid];
 
 const logger = new Logger('RoomClient');
 
@@ -25,20 +61,19 @@ const PC_PROPRIETARY_CONSTRAINTS =
 	optional : [ { googDscp: true } ]
 };
 
-
 const insertableStreamsSupported = Boolean(RTCRtpSender.prototype.createEncodedStreams);
 
 // Used for VP9 webcam video.
 const VIDEO_KSVC_ENCODINGS =
-[
-	{ scalabilityMode: 'S3T3_KEY' }
-];
+	[
+		{ scalabilityMode: 'S3T3_KEY' }
+	];
 
 // Used for VP9 desktop sharing.
 const VIDEO_SVC_ENCODINGS =
-[
-	{ scalabilityMode: 'S3T3', dtx: true }
-];
+	[
+		{ scalabilityMode: 'S3T3', dtx: true }
+	];
 const VIDEO_SIMULCAST_PROFILES =
 {
 	3840 :
@@ -60,14 +95,14 @@ const VIDEO_SIMULCAST_PROFILES =
 			{ scaleResolutionDownBy: 1, maxBitRate: 1200000 }
 		],
 	640 :
-	[
-		{ scaleResolutionDownBy: 2, maxBitRate: 150000 },
-		{ scaleResolutionDownBy: 1, maxBitRate: 500000 }
-	],
+		[
+			{ scaleResolutionDownBy: 2, maxBitRate: 150000 },
+			{ scaleResolutionDownBy: 1, maxBitRate: 500000 }
+		],
 	320 :
-	[
-		{ scaleResolutionDownBy: 1, maxBitRate: 150000 }
-	]
+		[
+			{ scaleResolutionDownBy: 1, maxBitRate: 150000 }
+		]
 };
 
 const DEFAULT_NETWORK_PRIORITIES =
@@ -78,7 +113,6 @@ const DEFAULT_NETWORK_PRIORITIES =
 	screenShare      : 'medium'
 };
 
-
 /**
  * Validates the simulcast `encodings` array extracting the resolution scalings
  * array.
@@ -87,61 +121,62 @@ const DEFAULT_NETWORK_PRIORITIES =
  * @param {*} encodings
  * @returns the resolution scalings array
  */
- function getResolutionScalings(encodings)
- {
-	 const resolutionScalings = [];
- 
-	 // SVC encodings
-	 if (encodings.length === 1)
-	 {
-		 const { spatialLayers } =
-			 mediasoupClient.parseScalabilityMode(encodings[0].scalabilityMode);
- 
-		 for (let i=0; i < spatialLayers; i++)
-		 {
-			 resolutionScalings.push(2 ** (spatialLayers - i - 1));
-		 }
- 
-		 return resolutionScalings;
-	 }
- 
-	 // Simulcast encodings
-	 let scaleResolutionDownByDefined = false;
- 
-	 encodings.forEach((encoding) =>
-	 {
-		 if (encoding.scaleResolutionDownBy !== undefined)
-		 {
-			 // at least one scaleResolutionDownBy is defined
-			 scaleResolutionDownByDefined = true;
-			 // scaleResolutionDownBy must be >= 1.0
-			 resolutionScalings.push(Math.max(1.0, encoding.scaleResolutionDownBy));
-		 }
-		 else
-		 {
-			 // If encodings contains any encoding whose scaleResolutionDownBy
-			 // attribute is defined, set any undefined scaleResolutionDownBy
-			 // of the other encodings to 1.0.
-			 resolutionScalings.push(1.0);
-		 }
-	 });
- 
-	 // If the scaleResolutionDownBy attribues of sendEncodings are
-	 // still undefined, initialize each encoding's scaleResolutionDownBy
-	 // to 2^(length of sendEncodings - encoding index - 1).
-	 if (!scaleResolutionDownByDefined)
-	 {
-		 encodings.forEach((encoding, index) =>
-		 {
-			 resolutionScalings[index] = 2 ** (encodings.length - index - 1);
-		 });
-	 }
-	 return resolutionScalings;
- }
- 
-export default class RoomClient extends EventEmitter
+function getResolutionScalings(encodings) 
 {
-	constructor({ roomId, peerId })
+	const resolutionScalings = [];
+
+	// SVC encodings
+	if (encodings.length === 1) 
+	{
+		const { spatialLayers } =
+			mediasoupClient.parseScalabilityMode(encodings[0].scalabilityMode);
+
+		for (let i = 0; i < spatialLayers; i++) 
+		{
+			resolutionScalings.push(2 ** (spatialLayers - i - 1));
+		}
+
+		return resolutionScalings;
+	}
+
+	// Simulcast encodings
+	let scaleResolutionDownByDefined = false;
+
+	encodings.forEach((encoding) => 
+	{
+		if (encoding.scaleResolutionDownBy !== undefined) 
+		{
+			// at least one scaleResolutionDownBy is defined
+			scaleResolutionDownByDefined = true;
+			// scaleResolutionDownBy must be >= 1.0
+			resolutionScalings.push(Math.max(1.0, encoding.scaleResolutionDownBy));
+		}
+		else 
+		{
+			// If encodings contains any encoding whose scaleResolutionDownBy
+			// attribute is defined, set any undefined scaleResolutionDownBy
+			// of the other encodings to 1.0.
+			resolutionScalings.push(1.0);
+		}
+	});
+
+	// If the scaleResolutionDownBy attribues of sendEncodings are
+	// still undefined, initialize each encoding's scaleResolutionDownBy
+	// to 2^(length of sendEncodings - encoding index - 1).
+	if (!scaleResolutionDownByDefined) 
+	{
+		encodings.forEach((encoding, index) => 
+		{
+			resolutionScalings[index] = 2 ** (encodings.length - index - 1);
+		});
+	}
+
+	return resolutionScalings;
+}
+
+export default class RoomClient extends EventEmitter 
+{
+	constructor({ roomId, peerId }) 
 	{
 		logger.debug(
 			'constructor() [roomId: "%s", peerId: "%s"]',
@@ -191,13 +226,17 @@ export default class RoomClient extends EventEmitter
 		// mediasoup Consumers.
 		// @type {Map<String, mediasoupClient.Consumer>}
 		this._consumers = new Map();
+	
+		const {
+			mode
+		} = window.config[callid];
 
-		this._browserMixer = new BrowserMixer({ mixWidth: 1280, mixHeight: 960 });
+		this._browserMixer = new BrowserMixer({ mixWidth: 1280, mixHeight: 960, mode });
 
 		this.join();
 	}
 
-	close()
+	close() 
 	{
 		if (this._closed)
 			return;
@@ -224,12 +263,12 @@ export default class RoomClient extends EventEmitter
 		this.emit('closed');
 	}
 
-	timeoutCallback(callback)
+	timeoutCallback(callback) 
 	{
 		let called = false;
 
 		const interval = setTimeout(
-			() =>
+			() => 
 			{
 				if (called)
 					return;
@@ -239,7 +278,7 @@ export default class RoomClient extends EventEmitter
 			ROOM_OPTIONS.requestTimeout
 		);
 
-		return (...args) =>
+		return (...args) => 
 		{
 			if (called)
 				return;
@@ -250,26 +289,26 @@ export default class RoomClient extends EventEmitter
 		};
 	}
 
-	sendRequest(method, data)
+	sendRequest(method, data) 
 	{
-		return new Promise((resolve, reject) =>
+		return new Promise((resolve, reject) => 
 		{
-			if (!this._signalingSocket)
+			if (!this._signalingSocket) 
 			{
 				reject('No socket connection.');
 			}
-			else
+			else 
 			{
 				this._signalingSocket.emit(
 					'request',
 					{ method, data },
-					this.timeoutCallback((err, response) =>
+					this.timeoutCallback((err, response) => 
 					{
-						if (err)
+						if (err) 
 						{
 							reject(err);
 						}
-						else
+						else 
 						{
 							resolve(response);
 						}
@@ -279,36 +318,36 @@ export default class RoomClient extends EventEmitter
 		});
 	}
 
-	getMixStream()
+	getMixStream() 
 	{
 		return this._browserMixer.getMixStream();
 	}
 
-	incomingSession(sipSession)
+	incomingSession(sipSession) 
 	{
 		logger.debug('incomingSession() [sipSession:"%o"]', sipSession);
 
 		this._sipSession = sipSession;
 
-		sipSession.on('trackAdded', () =>
+		sipSession.on('trackAdded', () => 
 		{
 			logger.debug('SipSession trackAdded [sipSession: %o]', sipSession);
 
 			const { peerConnection } = sipSession.sessionDescriptionHandler;
 
-			peerConnection.getReceivers().forEach(async (receiver) =>
+			peerConnection.getReceivers().forEach(async (receiver) => 
 			{
 				const { track } = receiver;
 
-				if (track && this._joined)
+				if (track && this._joined) 
 				{
 					logger.debug('incomingSession() | remote track [track:"%o"]', receiver.track);
 
-					if (track.kind === 'audio')
+					if (track.kind === 'audio') 
 					{
 						this._enableAudio(track);
 					}
-					else
+					else 
 					{
 						this._enableVideo(track);
 					}
@@ -316,14 +355,14 @@ export default class RoomClient extends EventEmitter
 			});
 		});
 
-		sipSession.on('replaced', (newSipSession) =>
+		sipSession.on('replaced', (newSipSession) => 
 		{
 			logger.debug('SipSession replaced [oldSipSession: %o, newSipSession: %o]', sipSession, newSipSession);
 
 			this._handleSession(newSipSession);
 		});
 
-		sipSession.on('terminated', (message, cause) =>
+		sipSession.on('terminated', (message, cause) => 
 		{
 			logger.debug(
 				'SipSession terminated [message: %o, cause: %s, sipSession: %o]',
@@ -349,12 +388,13 @@ export default class RoomClient extends EventEmitter
 		});
 	}
 
-	async _enableAudio(track)
+	async _enableAudio(track) 
 	{
-		if (this._audioProducer){
+		if (this._audioProducer) 
+		{
 			return;
 		}
-		if (!this._mediasoupDevice.canProduce('audio'))
+		if (!this._mediasoupDevice.canProduce('audio')) 
 		{
 			logger.error('_enableAudio() | cannot produce audio');
 
@@ -363,7 +403,7 @@ export default class RoomClient extends EventEmitter
 
 		const networkPriority = DEFAULT_NETWORK_PRIORITIES.audio;
 
-		try
+		try 
 		{
 			this._audioProducer = this._audioProducer = await this._sendTransport.produce(
 				{
@@ -380,41 +420,41 @@ export default class RoomClient extends EventEmitter
 						opusDtx             : true,
 						opusFec             : true,
 						opusPtime           : '3',
-						opusMaxPlaybackRate	: 48000
+						opusMaxPlaybackRate : 48000
 					},
 					appData : { source: 'mic' }
 				});
-			
-			this._audioProducer.on('transportclose', () =>
+
+			this._audioProducer.on('transportclose', () => 
 			{
 				this._micProducer = null;
 			});
 
-			this._audioProducer.on('trackended', () =>
+			this._audioProducer.on('trackended', () => 
 			{
 				this._disableAudio()
-					.catch(() => {});
+					.catch(() => { });
 			});
 		}
-		catch (error)
+		catch (error) 
 		{
 			logger.debug('_enableAudio() [error:"%o"]', error);
 		}
 	}
 
-	async _disableAudio()
+	async _disableAudio() 
 	{
 		if (!this._audioProducer)
 			return;
 
 		this._audioProducer.close();
 
-		try
+		try 
 		{
 			await this.sendRequest(
 				'closeProducer', { producerId: this._audioProducer.id });
 		}
-		catch (error)
+		catch (error) 
 		{
 			logger.debug('_disableAudio() [error:"%o"]', error);
 		}
@@ -422,8 +462,7 @@ export default class RoomClient extends EventEmitter
 		this._audioProducer = null;
 	}
 
-
-	_getEncodings(width, height, screenSharing = false)
+	_getEncodings(width, height, screenSharing = false) 
 	{
 		// If VP9 is the only available video codec then use SVC.
 		const firstVideoCodec = this._mediasoupDevice
@@ -442,18 +481,18 @@ export default class RoomClient extends EventEmitter
 
 		return encodings;
 	}
-	_chooseEncodings(simulcastProfiles, size)
+	_chooseEncodings(simulcastProfiles, size) 
 	{
 		let encodings;
 
 		const sortedMap = new Map([ ...Object.entries(simulcastProfiles) ]
 			.sort((a, b) => parseInt(b[0]) - parseInt(a[0])));
 
-		for (const [ key, value ] of sortedMap)
+		for (const [ key, value ] of sortedMap) 
 		{
-			if (key < size)
+			if (key < size) 
 			{
-				if (encodings === null)
+				if (encodings === null) 
 				{
 					encodings = value;
 				}
@@ -465,7 +504,7 @@ export default class RoomClient extends EventEmitter
 		}
 
 		// hack as there is a bug in mediasoup
-		if (encodings.length === 1)
+		if (encodings.length === 1) 
 		{
 			encodings.push({ ...encodings[0] });
 		}
@@ -473,28 +512,23 @@ export default class RoomClient extends EventEmitter
 		return encodings;
 	}
 
-	async _enableVideo(track)
+	async _enableVideo(track) 
 	{
 		if (this._videoProducer)
 			return;
 
-		if (!this._mediasoupDevice.canProduce('video'))
+		if (!this._mediasoupDevice.canProduce('video')) 
 		{
 			logger.error('_enableVideo() | cannot produce video');
 
 			return;
 		}
 
-		try
+		try 
 		{
 			// If VP9 is the only available video codec then use SVC.
-			const firstVideoCodec = this._mediasoupDevice
-				.rtpCapabilities
-				.codecs
-				.find((c) => c.kind === 'video');
 
 			const { deviceId: width, height } = track.getSettings();
-
 
 			const networkPriority = {
 				'audio'            : 'high',
@@ -503,22 +537,13 @@ export default class RoomClient extends EventEmitter
 				'screenShare'      : 'medium'
 			};
 
-			/* let encodings;
-
-			if (firstVideoCodec.mimeType.toLowerCase() === 'video/vp9')
-				encodings = VIDEO_KSVC_ENCODINGS;
-			else
-				encodings = VIDEO_SIMULCAST_ENCODINGS; */
-
-				const encodings = this._getEncodings(width, height);
-
+			const encodings = this._getEncodings(width, height);
 
 			// fix fullscreen mode 
 			const resolutionScalings = getResolutionScalings(encodings);
-			
 
-			encodings[0].networkPriority=networkPriority;
-			console.log(resolutionScalings);
+			encodings[0].networkPriority = networkPriority;
+
 			this._videoProducer = await this._sendTransport.produce(
 				{
 					track,
@@ -527,7 +552,7 @@ export default class RoomClient extends EventEmitter
 					{
 						videoGoogleStartBitrate : 1000
 					},
-					appData : 
+					appData :
 					{
 						source : 'webcam',
 						width,
@@ -537,36 +562,36 @@ export default class RoomClient extends EventEmitter
 					}
 				});
 
-			this._videoProducer.on('transportclose', () =>
+			this._videoProducer.on('transportclose', () => 
 			{
 				this._micProducer = null;
 			});
 
-			this._videoProducer.on('trackended', () =>
+			this._videoProducer.on('trackended', () => 
 			{
 				this._disableVideo()
-					.catch(() => {});
+					.catch(() => { });
 			});
 		}
-		catch (error)
+		catch (error) 
 		{
 			logger.debug('_enableVideo() [error:"%o"]', error);
 		}
 	}
 
-	async _disableVideo()
+	async _disableVideo() 
 	{
 		if (!this._videoProducer)
 			return;
 
 		this._videoProducer.close();
 
-		try
+		try 
 		{
 			await this.sendRequest(
 				'closeProducer', { producerId: this._videoProducer.id });
 		}
-		catch (error)
+		catch (error) 
 		{
 			logger.debug('_disableVideo() [error:"%o"]', error);
 		}
@@ -575,105 +600,105 @@ export default class RoomClient extends EventEmitter
 	}
 
 	// Updated consumers based on spotlights
-	async updateSpotlights(spotlights)
+	async updateSpotlights(spotlights) 
 	{
 		logger.debug('updateSpotlights()');
 
-		try
+		try 
 		{
-			for (const consumer of this._consumers.values())
+			for (const consumer of this._consumers.values()) 
 			{
-				if (consumer.kind === 'video')
+				if (consumer.kind === 'video') 
 				{
-					if (spotlights.includes(consumer.appData.peerId))
+					if (spotlights.includes(consumer.appData.peerId)) 
 					{
 						await this._resumeConsumer(consumer);
 					}
-					else
+					else 
 					{
-						//await this._pauseConsumer(consumer);
+						// await this._pauseConsumer(consumer);
 					}
 				}
 			}
 		}
-		catch (error)
+		catch (error) 
 		{
 			logger.error('updateSpotlights() failed: %o', error);
 		}
 	}
 
-	async _pauseConsumer(consumer)
+	async _pauseConsumer(consumer) 
 	{
 		logger.debug('_pauseConsumer() [consumer: %o]', consumer);
 
 		if (consumer.paused || consumer.closed)
 			return;
 
-		try
+		try 
 		{
 			await this.sendRequest('pauseConsumer', { consumerId: consumer.id });
 
 			consumer.pause();
 		}
-		catch (error)
+		catch (error) 
 		{
 			logger.error('_pauseConsumer() | failed:%o', error);
 		}
 	}
 
-	async _resumeConsumer(consumer)
+	async _resumeConsumer(consumer) 
 	{
 		logger.debug('_resumeConsumer() [consumer: %o]', consumer);
 		if (!consumer.paused || consumer.closed)
 			return;
- 
-		try
+
+		try 
 		{
 			await this.sendRequest('resumeConsumer', { consumerId: consumer.id });
 
 			consumer.resume();
 		}
-		catch (error)
+		catch (error) 
 		{
 			logger.error('_resumeConsumer() | failed:%o', error);
 		}
 	}
 
-	async join()
+	async join() 
 	{
 		this._signalingSocket = io(this._signalingUrl);
 
 		this._spotlights = new Spotlights(this._maxSpotlights, this._signalingSocket);
 
-		this._signalingSocket.on('connect', () =>
+		this._signalingSocket.on('connect', () => 
 		{
 			logger.debug('signaling "connect" event');
 		});
 
-		this._signalingSocket.on('disconnect', () =>
+		this._signalingSocket.on('disconnect', () => 
 		{
 			logger.warn('signaling "disconnect" event');
 
-			if (this._videoProducer)
+			if (this._videoProducer) 
 			{
 				this._videoProducer.close();
 				this._videoProducer = null;
 			}
 
-			if (this._audioProducer)
+			if (this._audioProducer) 
 			{
 				this._audioProducer.close();
 				this._audioProducer = null;
 			}
 
 			// Close mediasoup Transports.
-			if (this._sendTransport)
+			if (this._sendTransport) 
 			{
 				this._sendTransport.close();
 				this._sendTransport = null;
 			}
 
-			if (this._recvTransport)
+			if (this._recvTransport) 
 			{
 				this._recvTransport.close();
 				this._recvTransport = null;
@@ -682,7 +707,7 @@ export default class RoomClient extends EventEmitter
 			this._spotlights.clearSpotlights();
 		});
 
-		this._signalingSocket.on('close', () =>
+		this._signalingSocket.on('close', () => 
 		{
 			if (this._closed)
 				return;
@@ -692,30 +717,30 @@ export default class RoomClient extends EventEmitter
 			this.close();
 		});
 
-		this._signalingSocket.on('notification', async (notification) =>
+		this._signalingSocket.on('notification', async (notification) => 
 		{
 			logger.debug(
 				'socket "notification" event [method:%s, data:%o]',
 				notification.method, notification.data);
 
-			switch (notification.method)
+			switch (notification.method) 
 			{
 				case 'consumerResumed':
-					{
-						const { consumerId } = notification.data;
-						const consumer = this._consumers.get(consumerId);
+				{
+					const { consumerId } = notification.data;
+					const consumer = this._consumers.get(consumerId);
 
-						if (!consumer)
-							break;
-
-						this._spotlights.resumeVideoConsumer(consumerId);
-
+					if (!consumer)
 						break;
-					}
+
+					this._spotlights.resumeVideoConsumer(consumerId);
+
+					break;
+				}
 				case 'consumerScore':
-					{
-						break;
-					}
+				{
+					break;
+				}
 				case 'newConsumer':
 				{
 					const {
@@ -724,7 +749,7 @@ export default class RoomClient extends EventEmitter
 						id,
 						kind,
 						rtpParameters,
-						appData,
+						appData
 					} = notification.data;
 					const consumer = await this._recvTransport.consume(
 						{
@@ -738,13 +763,13 @@ export default class RoomClient extends EventEmitter
 					// Store in the map.
 					this._consumers.set(consumer.id, consumer);
 
-					consumer.on('transportclose', () =>
+					consumer.on('transportclose', () => 
 					{
-						if (kind === 'audio')
+						if (kind === 'audio') 
 						{
 							this._browserMixer.removeAudio(consumer.track);
 						}
-						else
+						else 
 						{
 							this._browserMixer.removeVideo(consumer.track);
 						}
@@ -752,17 +777,15 @@ export default class RoomClient extends EventEmitter
 						this._consumers.delete(consumer.id);
 					});
 
-					
 					// We are ready. Answer the notification so the server will
 					// resume this Consumer (which was paused for now).
 					await this.sendRequest('resumeConsumer', { consumerId: consumer.id });
 
-
-					if (kind === 'audio')
+					if (kind === 'audio') 
 					{
 						this._browserMixer.addAudio(consumer.track);
 					}
-					else
+					else 
 					{
 						this._browserMixer.addVideo(consumer.track);
 					}
@@ -777,15 +800,15 @@ export default class RoomClient extends EventEmitter
 			}
 		});
 
-		this._signalingSocket.on('notification', async (notification) =>
+		this._signalingSocket.on('notification', async (notification) => 
 		{
 			logger.debug(
 				'socket "notification" event [method:%s, data:%o]',
 				notification.method, notification.data);
 
-			try
+			try 
 			{
-				switch (notification.method)
+				switch (notification.method) 
 				{
 					case 'enteredLobby':
 					{
@@ -813,7 +836,7 @@ export default class RoomClient extends EventEmitter
 
 						break;
 					}
-	
+
 					case 'activeSpeaker':
 					{
 						const { peerId } = notification.data;
@@ -828,21 +851,21 @@ export default class RoomClient extends EventEmitter
 					{
 						const { consumerId } = notification.data;
 						const consumer = this._consumers.get(consumerId);
-	
+
 						if (!consumer)
 							break;
 
-						if (consumer.kind === 'audio')
+						if (consumer.kind === 'audio') 
 						{
 							this._browserMixer.removeAudio(consumer.track);
 						}
-						else
+						else 
 						{
 							this._browserMixer.removeVideo(consumer.track);
 						}
-	
+
 						consumer.close();
-	
+
 						this._consumers.delete(consumerId);
 
 						break;
@@ -863,7 +886,7 @@ export default class RoomClient extends EventEmitter
 					}
 				}
 			}
-			catch (error)
+			catch (error) 
 			{
 				logger.error('error on socket "notification" event failed:"%o"', error);
 			}
@@ -871,16 +894,16 @@ export default class RoomClient extends EventEmitter
 		});
 	}
 
-	async _joinRoom()
+	async _joinRoom() 
 	{
 		logger.debug('_joinRoom()');
 
-		try
+		try 
 		{
 			this._mediasoupDevice = new mediasoupClient.Device();
 
 			const routerRtpCapabilities =
-			await this.sendRequest('getRouterRtpCapabilities');
+				await this.sendRequest('getRouterRtpCapabilities');
 
 			routerRtpCapabilities.headerExtensions = routerRtpCapabilities.headerExtensions
 				.filter((ext) => ext.uri !== 'urn:3gpp:video-orientation');
@@ -926,11 +949,11 @@ export default class RoomClient extends EventEmitter
 					});
 
 				this._sendTransport.on(
-					'produce', async ({ kind, rtpParameters, appData }, callback, errback) =>
+					'produce', async ({ kind, rtpParameters, appData }, callback, errback) => 
 					{
-						try
+						try 
 						{
-							// eslint-disable-next-line no-shadow
+						// eslint-disable-next-line no-shadow
 							const { id } = await this.sendRequest(
 								'produce',
 								{
@@ -942,7 +965,7 @@ export default class RoomClient extends EventEmitter
 
 							callback({ id });
 						}
-						catch (error)
+						catch (error) 
 						{
 							errback(error);
 						}
@@ -970,7 +993,7 @@ export default class RoomClient extends EventEmitter
 						iceParameters,
 						iceCandidates,
 						dtlsParameters,
-						iceServers : this._turnServers,
+						iceServers         : this._turnServers,
 						additionalSettings : {
 							encodedInsertableStreams : insertableStreamsSupported
 						},
@@ -1010,12 +1033,12 @@ export default class RoomClient extends EventEmitter
 
 			this._spotlights.addPeers(peers);
 
-			this._spotlights.on('spotlights-updated', (spotlights) =>
+			this._spotlights.on('spotlights-updated', (spotlights) => 
 			{
 				this.updateSpotlights(spotlights);
 			});
 
-			if (lastNHistory.length > 0)
+			if (lastNHistory.length > 0) 
 			{
 				logger.debug('_joinRoom() | got lastN history');
 
@@ -1024,23 +1047,23 @@ export default class RoomClient extends EventEmitter
 				);
 			}
 
-			if (this._sipSession)
+			if (this._sipSession) 
 			{
 				const { peerConnection } = this._sipSession.sessionDescriptionHandler;
 
-				peerConnection.getReceivers().forEach(async (receiver) =>
+				peerConnection.getReceivers().forEach(async (receiver) => 
 				{
 					const { track } = receiver;
-	
-					if (track && this._joined)
+
+					if (track && this._joined) 
 					{
 						logger.debug('incomingSession() | remote track [track:"%o"]', receiver.track);
-	
-						if (track.kind === 'audio')
+
+						if (track.kind === 'audio') 
 						{
 							this._enableAudio(track);
 						}
-						else
+						else 
 						{
 							this._enableVideo(track);
 						}
@@ -1050,7 +1073,7 @@ export default class RoomClient extends EventEmitter
 
 			this._spotlights.start();
 		}
-		catch (error)
+		catch (error) 
 		{
 			logger.error('_joinRoom() failed:%o', error);
 

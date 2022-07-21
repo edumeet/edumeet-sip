@@ -5,7 +5,6 @@ import randomString from 'random-string';
 import Logger from './Logger';
 import debug from 'debug';
 import RoomClient from './RoomClient';
-
 import './index.css';
 
 if (process.env.REACT_APP_DEBUG === '*' || process.env.NODE_ENV !== 'production')
@@ -49,6 +48,19 @@ function run()
 			}
 		});
 	};
+	
+	let callid = null;
+
+	const wl = new URL(window.location).searchParams;
+
+	if (wl.has('callid'))
+	{
+		callid = wl.get('callid');
+	}
+	if (callid == null || window.config[callid]===undefined)
+	{
+		callid = [ 'default' ];
+	}
 
 	const {
 		userAgentString,
@@ -58,7 +70,7 @@ function run()
 		password,
 		wsServers,
 		traceSip
-	} = window.config;
+	} = window.config[callid];
 
 	const fixModifier = (description) =>
 	{
