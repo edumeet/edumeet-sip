@@ -210,34 +210,26 @@ export default class BrowserMixer
 
 		if (index === 0 && this._horzCount === 1) 
 		{
-			gridRatio = 1; // 1.333
+			gridRatio = 1.333; // 1.333
 		}
-		else if (video.videoHeight > gridHeight && this.mode==='filmstrip') 
+		else if (video.videoWidth / video.videoHeight > 2 && this.mode==='filmstrip') 
 		{
-			if (video.videoWidth / video.videoHeight > 2) 
-			{
-				gridRatio = 1.7777;
-			}
-			else 
-			{
-				gridRatio = 1.333; // 1.333
-			}
+			gridRatio = 1.7777;
 		}
-		else if (video.videoHeight > gridHeight) 
+		else if (this.mode==='filmstrip')
 		{
-			if (video.videoWidth / video.videoHeight > 2) 
-			{
-				gridRatio = 1.7777;
-			}
-			else 
-			{
-				gridRatio = 1; // 1.333
-			}
+			gridRatio = 1.333; // 1.333
+		}
+		else if (video.videoWidth / video.videoHeight > 2) 
+		{
+			gridRatio = 1.7777;
 		}
 		else 
 		{
-			gridRatio = 1; // 1.333
+			gridRatio = 1;
 		}
+
+		
 
 		if (index === 0 && this.mode==='filmstrip') 
 		{
