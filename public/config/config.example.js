@@ -13,6 +13,7 @@ var config =
 		traceSip        : true,
 		edumeetHostName : 'example.com',
 		edumeetPort     : '4443',
+		defaultroom   		: 'testroom', // if X-Room is empty
 		turnServers     : [
 			{
 				urls : [
@@ -35,6 +36,7 @@ var config =
 		traceSip        : true,
 		edumeetHostName : 'example.com',
 		edumeetPort     : '4443',
+		defaultroom   		: 'testroom', // if X-Room is empty
 		turnServers     : [
 			{
 				urls : [
