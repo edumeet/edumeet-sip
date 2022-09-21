@@ -121,7 +121,7 @@ function run()
 
 		let xroom;
 		
-		if (typeof sipSession.request !== 'undefined')
+		if (typeof sipSession.request !== 'undefined' && typeof sipSession.request.getHeader('X-Room') !== 'undefined')
 		{
 			xroom = sipSession.request.getHeader('X-Room').toLowerCase();
 		}
