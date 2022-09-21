@@ -51,6 +51,8 @@ function run()
 
 	let callid = null;
 
+	let defaultroom = '';
+
 	const wl = new URL(window.location).searchParams;
 
 	if (wl.has('callid')) 
@@ -60,6 +62,11 @@ function run()
 	if (callid == null || window.config[callid] === undefined) 
 	{
 		callid = [ 'default' ];
+	}
+	
+	if (wl.has('defaultroom')) 
+	{
+		defaultroom = wl.get('defaultroom');
 	}
 
 	const {
@@ -119,6 +126,8 @@ function run()
 		if (typeof xroom !== 'undefined' && xroom !== '') 
 		{
 			roomId = xroom;
+		}else if (defaultroom!==''){
+			roomId = defaultroom;
 		}
 		else 
 		{	
@@ -128,10 +137,10 @@ function run()
 			}
 
 			const {
-				defaultroom
+				droom
 			} = window.config[callid];
 
-			roomId = defaultroom;
+			roomId = droom;
 		}
 
 		const peerId = randomString({ length: 8 }).toLowerCase();
