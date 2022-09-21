@@ -119,8 +119,13 @@ function run()
 	{
 		logger.debug('Incoming invite [sipSession: %o]', sipSession);
 
-		const xroom = sipSession.request.getHeader('X-Room').toLowerCase();
-
+		let xroom;
+		
+		if (typeof sipSession.request !== 'undefined')
+		{
+			xroom = sipSession.request.getHeader('X-Room').toLowerCase();
+		}
+		
 		let roomId;
 
 		if (typeof xroom !== 'undefined' && xroom !== '') 
