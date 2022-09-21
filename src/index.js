@@ -126,7 +126,9 @@ function run()
 		if (typeof xroom !== 'undefined' && xroom !== '') 
 		{
 			roomId = xroom;
-		}else if (defaultroom!==''){
+		}
+		else if (defaultroom!=='')
+		{
 			roomId = defaultroom;
 		}
 		else 
