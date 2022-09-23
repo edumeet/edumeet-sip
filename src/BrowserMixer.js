@@ -133,7 +133,7 @@ export default class BrowserMixer
 
 		let i = 0;
 
-		for (const key in this._videos) 
+		for (const key in this._videos)
 		{
 			if (Object.prototype.hasOwnProperty.call(this._videos, key)) 
 			{
@@ -218,7 +218,7 @@ export default class BrowserMixer
 		}
 		else if (this.mode==='filmstrip')
 		{
-			gridRatio = 1.333; // 1.333
+			gridRatio = 1; // 1.333
 		}
 		else if (video.videoWidth / video.videoHeight > 2) 
 		{
@@ -228,8 +228,6 @@ export default class BrowserMixer
 		{
 			gridRatio = 1;
 		}
-
-		
 
 		if (index === 0 && this.mode==='filmstrip') 
 		{
@@ -242,13 +240,15 @@ export default class BrowserMixer
 			srcHeight = (video.videoHeight * gridRatio).toFixed(0);
 		}
 		
+		const padding = 10;
+
 		const xCenter = (video.videoWidth / 2).toFixed(0);
 		const yCenter = (video.videoHeight / 2).toFixed(0);
 		const srcLeft = (xCenter - (srcWidth / 2)).toFixed(0);
 		const srcTop = (yCenter - (srcHeight / 2)).toFixed(0);
 
 		this._ctxMix.drawImage(video, srcLeft, srcTop, srcWidth, srcHeight,
-			destLeft, destTop, gridWidth, gridHeight
+			destLeft, destTop, gridWidth-padding, gridHeight
 		);
 	}
 
