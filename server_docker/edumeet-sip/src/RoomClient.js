@@ -613,9 +613,12 @@ export default class RoomClient extends EventEmitter
 					if (spotlights.includes(consumer.appData.peerId)) 
 					{
 						await this._resumeConsumer(consumer);
+						
+						await this._browserMixer.addSpotlight(consumer.track);
 					}
 					else 
 					{
+						await this._browserMixer.removeSpotlight(consumer.track);
 						// await this._pauseConsumer(consumer);
 					}
 				}

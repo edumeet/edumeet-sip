@@ -54,13 +54,16 @@ export default class Spotlights extends EventEmitter
 	}
 	resumeVideoConsumer(consumerId)
 	{
-		const videoConsumer = this._activeVideoConsumers.find((consumer) =>
-			consumer.consumerId === consumerId);
+		if (this._activeVideoConsumers){
+			const videoConsumer = this._activeVideoConsumers.find((consumer) =>
+				consumer.consumerId === consumerId);
+		
 
-		if (videoConsumer)
-		{
-			videoConsumer.remotelyPaused = false;
-			this._spotlightsUpdated();
+			if (videoConsumer)
+			{
+				videoConsumer.remotelyPaused = false;
+				this._spotlightsUpdated();
+			}
 		}
 	}
 

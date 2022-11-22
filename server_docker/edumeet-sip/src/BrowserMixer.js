@@ -34,6 +34,8 @@ export default class BrowserMixer
 
 		this._audioMixAllStream = null;
 
+		this._spotlights = [];
+
 		this._initCanvas();
 
 		this._start();
@@ -124,7 +126,9 @@ export default class BrowserMixer
 
 	_clearMixCanvas() 
 	{
-		this._ctxMix.fillRect(0, 0, this._mixWidth, this._mixHeight);
+		//this._ctxMix.fillRect(0, 0, this._mixWidth, this._mixHeight);
+		this._ctxMix.clearRect(0, 0, this._mixWidth, this._mixHeight);
+
 	}
 
 	_drawMixCanvas = () => 
@@ -132,10 +136,24 @@ export default class BrowserMixer
 		window.requestAnimationFrame(this._drawMixCanvas);
 
 		let i = 0;
+	
+		// add spotlight 
+		let spt = [];
+		for (const key in this._spotlights)
+		{
+			if (Object.prototype.hasOwnProperty.call(this._videos, key)) 
+			{
+				this._drawVideoGrid(key, i);
+				spt.push(key);
+				i++;
+			}
+		}
+
+		// add everything else
 
 		for (const key in this._videos)
 		{
-			if (Object.prototype.hasOwnProperty.call(this._videos, key)) 
+			if (!spt.includes(key) && Object.prototype.hasOwnProperty.call(this._videos, key)) 
 			{
 				this._drawVideoGrid(key, i);
 
@@ -229,27 +247,29 @@ export default class BrowserMixer
 			gridRatio = 1;
 		}
 
-		if (index === 0 && this.mode==='filmstrip') 
-		{
-			srcWidth = video.videoWidth;
-			srcHeight = (video.videoHeight).toFixed(0);
-		}
-		else 
-		{
-			srcWidth = video.videoWidth.toFixed(0);
-			srcHeight = (video.videoHeight * gridRatio).toFixed(0);
-		}
-		
-		const padding = 10;
+		if (video){
+			if (index === 0 && this.mode==='filmstrip') 
+			{
+				srcWidth = video.videoWidth;
+				srcHeight = (video.videoHeight).toFixed(0);
+			}
+			else 
+			{
+				srcWidth = video.videoWidth.toFixed(0);
+				srcHeight = (video.videoHeight * gridRatio).toFixed(0);
+			}
+			
+			const padding = 10;
 
-		const xCenter = (video.videoWidth / 2).toFixed(0);
-		const yCenter = (video.videoHeight / 2).toFixed(0);
-		const srcLeft = (xCenter - (srcWidth / 2)).toFixed(0);
-		const srcTop = (yCenter - (srcHeight / 2)).toFixed(0);
+			const xCenter = (video.videoWidth / 2).toFixed(0);
+			const yCenter = (video.videoHeight / 2).toFixed(0);
+			const srcLeft = (xCenter - (srcWidth / 2)).toFixed(0);
+			const srcTop = (yCenter - (srcHeight / 2)).toFixed(0);
 
-		this._ctxMix.drawImage(video, srcLeft, srcTop, srcWidth, srcHeight,
-			destLeft, destTop, gridWidth-padding, gridHeight
-		);
+			this._ctxMix.drawImage(video, srcLeft, srcTop, srcWidth, srcHeight,
+				destLeft, destTop, gridWidth-padding, gridHeight
+			);
+		}
 	}
 
 	_calculateGrid() 
@@ -300,6 +320,20 @@ export default class BrowserMixer
 			}
 		}
 	}
+
+	async addSpotlight(track) {
+		logger.debug('addSpotlight() [track:"%s"]', track.id);
+		const video = document.getElementById(`video_${track.id}`);
+		this._spotlights[track.id] = video;
+		
+		this._calculateGrid();
+		this._clearMixCanvas();
+
+	}
+	async removeSpotlight(track) {
+		delete this._spotlights[track.id];
+	}
+	
 
 	addVideo(track) 
 	{
