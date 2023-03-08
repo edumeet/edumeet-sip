@@ -44,10 +44,16 @@ if (callid == null || window.config[callid] === undefined)
 	callid = [ 'default' ];
 }
 
-const {
-	lastN
-} = window.config[callid];
+let lastN;
 
+if (wl.has('lastN'))
+{
+    lastN = wl.get('lastN');
+}
+else
+{
+    lastN = window.config[callid]['lastN'];
+}
 const logger = new Logger('RoomClient');
 
 const ROOM_OPTIONS =
