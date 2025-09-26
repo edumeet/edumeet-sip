@@ -1,19 +1,15 @@
+/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import debug from 'debug';
 
 const APP_NAME = 'edumeet-sip';
 
-export default class Logger
-{
-	constructor(prefix)
-	{
-		if (prefix)
-		{
+export default class Logger {
+	constructor(prefix) {
+		if (prefix) {
 			this._debug = debug(`${APP_NAME}:${prefix}`);
 			this._warn = debug(`${APP_NAME}:WARN:${prefix}`);
 			this._error = debug(`${APP_NAME}:ERROR:${prefix}`);
-		}
-		else
-		{
+		} else {
 			this._debug = debug(APP_NAME);
 			this._warn = debug(`${APP_NAME}:WARN`);
 			this._error = debug(`${APP_NAME}:ERROR`);
@@ -26,18 +22,15 @@ export default class Logger
 		/* eslint-enable no-console */
 	}
 
-	get debug()
-	{
+	get debug() {
 		return this._debug;
 	}
 
-	get warn()
-	{
+	get warn() {
 		return this._warn;
 	}
 
-	get error()
-	{
+	get error() {
 		return this._error;
 	}
 }

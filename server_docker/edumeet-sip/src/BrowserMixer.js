@@ -1,11 +1,11 @@
+/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
+/* eslint-disable no-invalid-this */
 import Logger from './Logger';
 
 const logger = new Logger('BrowserMixer');
 
-export default class BrowserMixer 
-{
-	constructor({ mixWidth = 640, mixHeight = 480, frameRate = 15, mode = 'democratic' } = {}) 
-	{
+export default class BrowserMixer {
+	constructor({ mixWidth = 640, mixHeight = 480, frameRate = 15, mode = 'democratic' } = {}) {
 		logger.debug('constructor()');
 
 		this.mode = mode;
@@ -41,8 +41,7 @@ export default class BrowserMixer
 		this._start();
 	}
 
-	_initCanvas() 
-	{
+	_initCanvas() {
 		this._mixCanvas = document.createElement('canvas');
 		this._mixCanvas.setAttribute('width', `${this._mixWidth}px`);
 		this._mixCanvas.setAttribute('height', `${this._mixHeight}px`);
@@ -53,8 +52,7 @@ export default class BrowserMixer
 		this._ctxMix.fillStyle = 'rgb(0, 0, 0)';
 	}
 
-	_start() 
-	{
+	_start() {
 		logger.debug('start()');
 
 		this._audioContext = new AudioContext();
@@ -65,32 +63,26 @@ export default class BrowserMixer
 		this._animationId = window.requestAnimationFrame(this._drawMixCanvas);
 	}
 
-	close() 
-	{
+	close() {
 		logger.debug('stop()');
 
-		if (this._mixAllOutputNode) 
-		{
+		if (this._mixAllOutputNode) {
 			this._audioMixAllStream = null;
 			this._mixAllOutputNode = null;
 		}
 
-		if (this._mixStream) 
-		{
+		if (this._mixStream) {
 			this._stopStream();
 			this._mixStream = null;
 		}
 
-		if (this._animationId) 
-		{
+		if (this._animationId) {
 			window.cancelAnimationFrame(this._animationId);
 			this._animationId = null;
 		}
 
-		for (const key in this._videos) 
-		{
-			if (Object.prototype.hasOwnProperty.call(this._videos, key)) 
-			{
+		for (const key in this._videos) {
+			if (Object.prototype.hasOwnProperty.call(this._videos, key)) {
 				document.body.removeChild(this._videos[key]);
 			}
 		}
@@ -100,49 +92,42 @@ export default class BrowserMixer
 		document.body.removeChild(this._mixCanvas);
 	}
 
-	_stopStream() 
-	{
+	_stopStream() {
 		logger.debug('_stopStream()');
 
 		const tracks = this._mixStream.getTracks();
 
-		if (!tracks) 
-		{
+		if (!tracks) {
 			return;
 		}
 
-		for (const track of tracks) 
-		{
+		for (const track of tracks) {
 			track.stop();
 		}
 	}
 
-	getMixStream() 
-	{
+	getMixStream() {
 		logger.debug('getMixStream() [stream:"%o"]', this._mixStream.getTracks());
 
 		return this._mixStream;
 	}
 
-	_clearMixCanvas() 
-	{
-		//this._ctxMix.fillRect(0, 0, this._mixWidth, this._mixHeight);
+	_clearMixCanvas() {
+		// this._ctxMix.fillRect(0, 0, this._mixWidth, this._mixHeight);
 		this._ctxMix.clearRect(0, 0, this._mixWidth, this._mixHeight);
 
 	}
 
-	_drawMixCanvas = () => 
-	{
+	_drawMixCanvas = () => {
 		window.requestAnimationFrame(this._drawMixCanvas);
 
 		let i = 0;
 	
 		// add spotlight 
-		let spt = [];
-		for (const key in this._spotlights)
-		{
-			if (Object.prototype.hasOwnProperty.call(this._videos, key)) 
-			{
+		const spt = [];
+
+		for (const key in this._spotlights) {
+			if (Object.prototype.hasOwnProperty.call(this._videos, key)) {
 				this._drawVideoGrid(key, i);
 				spt.push(key);
 				i++;
@@ -151,10 +136,8 @@ export default class BrowserMixer
 
 		// add everything else
 
-		for (const key in this._videos)
-		{
-			if (!spt.includes(key) && Object.prototype.hasOwnProperty.call(this._videos, key)) 
-			{
+		for (const key in this._videos) {
+			if (!spt.includes(key) && Object.prototype.hasOwnProperty.call(this._videos, key)) {
 				this._drawVideoGrid(key, i);
 
 				i++;
@@ -162,8 +145,7 @@ export default class BrowserMixer
 		}
 	};
 
-	_drawVideoGrid(key, index) 
-	{
+	_drawVideoGrid(key, index) {
 		let gridWidth;
 
 		let gridHeight;
@@ -172,41 +154,31 @@ export default class BrowserMixer
 
 		let destTop;
 
-		if (this.mode==='democratic')
-		{
+		if (this.mode==='democratic') {
 			gridWidth = this._mixWidth / this._horzCount;
 			gridHeight = this._mixHeight / this._vertCount;
 			destLeft = gridWidth * (index % this._horzCount);
 			destTop = gridHeight * Math.floor(index / this._horzCount);
 				
-		}
-		else if (this.mode==='filmstrip')
-		{
-			if (index === 0) 
-			{
+		} else if (this.mode==='filmstrip') {
+			if (index === 0) {
 				gridWidth = this._mixWidth;
 				gridHeight = this._mixHeight;
 				destLeft = gridWidth * (index % this._horzCount);
 				destTop = 0;
 	
-			}
-			else if (index <=5)
-			{
+			} else if (index <=5) {
 				gridWidth = this._mixWidth / this._horzCount;
 				gridHeight = this._mixHeight / this._vertCount;
 				destLeft = gridWidth * (index-1);
 				destTop = gridHeight * 4;
-			}
-			else 
-			{
+			} else {
 				gridWidth = this._mixWidth;
 				gridHeight = this._mixHeight / this._vertCount;
 				destLeft = gridWidth * (index % this._horzCount);
 				destTop = 0;
 			}
-		}
-		else
-		{
+		} else {
 			gridWidth = this._mixWidth / this._horzCount;
 			gridHeight = this._mixHeight / this._vertCount;
 			destLeft = gridWidth * (index % this._horzCount);
@@ -216,8 +188,7 @@ export default class BrowserMixer
 		this._drawVideoGridVideo(key, index, destLeft, destTop, gridWidth, gridHeight);
 	}
 
-	_drawVideoGridVideo(key, index, destLeft, destTop, gridWidth, gridHeight) 
-	{
+	_drawVideoGridVideo(key, index, destLeft, destTop, gridWidth, gridHeight) {
 		const video = this._videos[key];
 
 		let gridRatio;
@@ -226,35 +197,23 @@ export default class BrowserMixer
 
 		let srcHeight;
 
-		if (index === 0 && this._horzCount === 1) 
-		{
+		if (index === 0 && this._horzCount === 1) {
 			gridRatio = 1.333; // 1.333
-		}
-		else if (video.videoWidth / video.videoHeight > 2 && this.mode==='filmstrip') 
-		{
+		} else if (video.videoWidth / video.videoHeight > 2 && this.mode==='filmstrip') {
 			gridRatio = 1.7777;
-		}
-		else if (this.mode==='filmstrip')
-		{
+		} else if (this.mode==='filmstrip') {
 			gridRatio = 1; // 1.333
-		}
-		else if (video.videoWidth / video.videoHeight > 2) 
-		{
+		} else if (video.videoWidth / video.videoHeight > 2) {
 			gridRatio = 1.7777;
-		}
-		else 
-		{
+		} else {
 			gridRatio = 1;
 		}
 
-		if (video){
-			if (index === 0 && this.mode==='filmstrip') 
-			{
+		if (video) {
+			if (index === 0 && this.mode==='filmstrip') {
 				srcWidth = video.videoWidth;
 				srcHeight = (video.videoHeight).toFixed(0);
-			}
-			else 
-			{
+			} else {
 				srcWidth = video.videoWidth.toFixed(0);
 				srcHeight = (video.videoHeight * gridRatio).toFixed(0);
 			}
@@ -272,49 +231,33 @@ export default class BrowserMixer
 		}
 	}
 
-	_calculateGrid() 
-	{
+	_calculateGrid() {
 		this._horzCount = 1;
 		this._vertCount = 1;
 		const videoCount = Object.keys(this._videos).length;
 
-		if (this.mode==='democratic')
-		{
-			if (videoCount > 36) 
-			{
+		if (this.mode==='democratic') {
+			if (videoCount > 36) {
 				this._horzCount = 7;
 				this._vertCount = 7;
-			}
-			else if (videoCount > 25) 
-			{
+			} else if (videoCount > 25) {
 				this._horzCount = 6;
 				this._vertCount = 6;
-			}
-			else if (videoCount > 16) 
-			{
+			} else if (videoCount > 16) {
 				this._horzCount = 5;
 				this._vertCount = 5;
-			}
-			else if (videoCount > 9) 
-			{
+			} else if (videoCount > 9) {
 				this._horzCount = 4;
 				this._vertCount = 4;
-			}
-			else if (videoCount > 4) 
-			{
+			} else if (videoCount > 4) {
 				this._horzCount = 3;
 				this._vertCount = 3;
-			}
-			else if (videoCount > 1) 
-			{
+			} else if (videoCount > 1) {
 				this._horzCount = 2;
 				this._vertCount = 2;
 			}
-		}
-		else if (this.mode==='filmstrip')
-		{
-			if (videoCount > 1) 
-			{
+		} else if (this.mode==='filmstrip') {
+			if (videoCount > 1) {
 				this._horzCount = 5;
 				this._vertCount = 5;
 			}
@@ -324,6 +267,7 @@ export default class BrowserMixer
 	async addSpotlight(track) {
 		logger.debug('addSpotlight() [track:"%s"]', track.id);
 		const video = document.getElementById(`video_${track.id}`);
+
 		this._spotlights[track.id] = video;
 		
 		this._calculateGrid();
@@ -333,17 +277,14 @@ export default class BrowserMixer
 	async removeSpotlight(track) {
 		delete this._spotlights[track.id];
 	}
-	
 
-	addVideo(track) 
-	{
+	addVideo(track) {
 		logger.debug('addVideo() [track:"%s"]', track.id);
 
 		const videoId = `video_${track.id}`;
 		const existRemoteVideo = document.getElementById(videoId);
 
-		if (existRemoteVideo) 
-		{
+		if (existRemoteVideo) {
 			logger.error('addVideo() | video already added');
 
 			return;
@@ -354,21 +295,18 @@ export default class BrowserMixer
 		video.id = `video_${track.id}`;
 		video.style.border = '1px solid black';
 
-		if (this._hideRemoteVideoFlag) 
-		{
+		if (this._hideRemoteVideoFlag) {
 			video.style.display = 'none';
 		}
 
-		video.addEventListener('playing', () => 
-		{
+		video.addEventListener('playing', () => {
 			this._videos[track.id] = video;
 
 			this._calculateGrid();
 
 			this._clearMixCanvas();
 		}, true);
-		video.addEventListener('resize', () => 
-		{
+		video.addEventListener('resize', () => {
 			this._calculateGrid();
 			this._clearMixCanvas();
 		}, true);
@@ -383,8 +321,7 @@ export default class BrowserMixer
 		video.play();
 	}
 
-	removeVideo(track) 
-	{
+	removeVideo(track) {
 		const video = this._videos[track.id];
 
 		if (!video)
@@ -401,12 +338,9 @@ export default class BrowserMixer
 		this._clearMixCanvas();
 	}
 
-	removeAllVideo() 
-	{
-		for (const key in this._videos) 
-		{
-			if (Object.prototype.hasOwnProperty.call(this._videos, key)) 
-			{
+	removeAllVideo() {
+		for (const key in this._videos) {
+			if (Object.prototype.hasOwnProperty.call(this._videos, key)) {
 				const video = this._videos[key];
 
 				video.pause();
@@ -422,8 +356,7 @@ export default class BrowserMixer
 		this._clearMixCanvas();
 	}
 
-	addAudio(track) 
-	{
+	addAudio(track) {
 		logger.debug('addAudio() [track:"%s"]', track.id);
 
 		const existingNode = this._inputNodes[track.id];
@@ -438,8 +371,7 @@ export default class BrowserMixer
 
 		audio.id = `audio_${track.id}`;
 
-		if (this._hideRemoteVideoFlag) 
-		{
+		if (this._hideRemoteVideoFlag) {
 			audio.style.display = 'none';
 		}
 
@@ -459,8 +391,7 @@ export default class BrowserMixer
 		node.connect(this._mixAllOutputNode);
 	}
 
-	removeAudio(track) 
-	{
+	removeAudio(track) {
 		const node = this._inputNodes[track.id];
 
 		if (!node)
@@ -477,12 +408,9 @@ export default class BrowserMixer
 		delete this._inputNodes[track.id];
 	}
 
-	removeAllAudio() 
-	{
-		for (const key in this._inputNodes) 
-		{
-			if (Object.prototype.hasOwnProperty.call(this._inputNodes, key)) 
-			{
+	removeAllAudio() {
+		for (const key in this._inputNodes) {
+			if (Object.prototype.hasOwnProperty.call(this._inputNodes, key)) {
 				const node = this._inputNodes[key];
 
 				node.disconnect(this._mixAllOutputNode);

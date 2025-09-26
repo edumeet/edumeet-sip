@@ -7,8 +7,7 @@ import debug from 'debug';
 import RoomClient from './RoomClient';
 import './index.css';
 
-if (process.env.REACT_APP_DEBUG === '*' || process.env.NODE_ENV !== 'production') 
-{
+if (process.env.REACT_APP_DEBUG === '*' || process.env.NODE_ENV !== 'production') {
 	debug.enable('* -engine* -socket* -RIE* *WARN* *ERROR*');
 }
 
@@ -17,33 +16,26 @@ const logger = new Logger();
 // Map of Room instances indexed by roomId.
 const rooms = new Map();
 
-domready(() => 
-{
+domready(() => {
 	logger.debug('DOM ready');
 
 	run();
 });
 
-function run() 
-{
+function run() {
 	logger.debug('run() [environment:%s]', process.env.NODE_ENV);
 
-	navigator.mediaDevices.getUserMedia = (constraints) => 
-	{
+	navigator.mediaDevices.getUserMedia = (constraints) => {
 		logger.debug('monkey-patched getUserMedia [constraints: "%o"]', constraints);
 
-		return new Promise((resolve, reject) => 
-		{
+		return new Promise((resolve, reject) => {
 			const { roomId, peerId } = constraints;
 
 			const room = rooms.get(`${roomId}_${peerId}`);
 
-			if (room) 
-			{
+			if (room) {
 				resolve(room.getMixStream());
-			}
-			else 
-			{
+			} else {
 				reject('No room created.');
 			}
 		});
@@ -55,17 +47,14 @@ function run()
 
 	const wl = new URL(window.location).searchParams;
 
-	if (wl.has('callid')) 
-	{
+	if (wl.has('callid')) {
 		callid = wl.get('callid');
 	}
-	if (callid == null || window.config[callid] === undefined) 
-	{
+	if (callid == null || window.config[callid] === undefined) {
 		callid = [ 'default' ];
 	}
 	
-	if (wl.has('defaultroom')) 
-	{
+	if (wl.has('defaultroom')) {
 		defaultroom = wl.get('defaultroom');
 	}
 
@@ -79,12 +68,10 @@ function run()
 		traceSip
 	} = window.config[callid];
 
-	const fixModifier = (description) => 
-	{
+	const fixModifier = (description) => {
 		const sdpObj = transform.parse(description.sdp);
 
-		sdpObj.media = sdpObj.media.filter((media) => 
-		{
+		sdpObj.media = sdpObj.media.filter((media) => {
 			return media.type === 'audio' ||
 				media.type === 'video';
 		});
@@ -102,44 +89,36 @@ function run()
 		register,
 		uri,
 		password,
-		rel100           : sip.C.supported.SUPPORTED,
-		transportOptions : {
+		rel100: sip.C.supported.SUPPORTED,
+		transportOptions: {
 			wsServers,
 			traceSip
 		},
-		sessionDescriptionHandlerFactoryOptions : {
-			modifiers :
+		sessionDescriptionHandlerFactoryOptions: {
+			modifiers:
 				[
 					fixModifier
 				]
 		}
 	});
 
-	sipUA.on('invite', (sipSession) => 
-	{
+	sipUA.on('invite', (sipSession) => {
 		logger.debug('Incoming invite [sipSession: %o]', sipSession);
 
 		let xroom;
 		
-		if (typeof sipSession.request !== 'undefined' && typeof sipSession.request.getHeader('X-Room') !== 'undefined')
-		{
+		if (typeof sipSession.request !== 'undefined' && typeof sipSession.request.getHeader('X-Room') !== 'undefined') {
 			xroom = sipSession.request.getHeader('X-Room').toLowerCase();
 		}
 		
 		let roomId;
 
-		if (typeof xroom !== 'undefined' && xroom !== '') 
-		{
+		if (typeof xroom !== 'undefined' && xroom !== '') {
 			roomId = xroom;
-		}
-		else if (defaultroom!=='')
-		{
+		} else if (defaultroom!=='') {
 			roomId = defaultroom;
-		}
-		else 
-		{	
-			if (callid == null || window.config[callid] === undefined) 
-			{
+		} else {	
+			if (callid == null || window.config[callid] === undefined) {
 				callid = [ 'default' ];
 			}
 
